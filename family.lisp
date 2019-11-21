@@ -144,15 +144,27 @@ Returns NIL (false) otherwise."
 ;;;NOTE: This function is complete. No need to change it.
 (DEFUN ancestors (name tree)
   "Returns a list of names (strings or symbols) of all the ancestors of NAME in TREE. 
-Does not remove any duplicated names! Does not sort names! Does dynamic type checking
-to see whether all the arguments are of the correct types."
+Does dynamic type checking to see whether all the arguments are of the correct types."
   (WHEN (NOT (OR (SYMBOLP name) (STRINGP name)))
     (ERROR "ANCESTORS called with NAME (~A) that is not a SYMBOL or STRING." name))
   (WHEN (NOT (HASH-TABLE-P tree))
     (ERROR "ANCESTORS called with TREE (~A) that is not a HASH-TABLE." tree))
   (WHEN (person-exists name tree)
-    (ancestorsb name tree)))
+    (SORT (REMOVE-DUPLICATES(ancestorsb name tree)) #'string-lessp)
+    ))
 
+
+;;; Handles type checking, etc for descendants.
+(DEFUN descendants (name tree)
+  "Returns a list of names (strings or symbols) of all the descendants of NAME in TREE. 
+Does dynamic type checking to see whether all the arguments are of the correct types."
+  (WHEN (NOT (OR (SYMBOLP name) (STRINGP name)))
+    (ERROR "ANCESTORS called with NAME (~A) that is not a SYMBOL or STRING." name))
+  (WHEN (NOT (HASH-TABLE-P tree))
+    (ERROR "ANCESTORS called with TREE (~A) that is not a HASH-TABLE." tree))
+  (WHEN (person-exists name tree)
+    (SORT (REMOVE-DUPLICATES(descendantsb name tree)) #'string-lessp)
+    ))
 
 
 
@@ -161,8 +173,6 @@ to see whether all the arguments are of the correct types."
 ;;; TEAM SHOULD PUT ALL NEW HELPER FUNCTION
 ;;; DEFINITIONS BELOW THIS COMMENT
 ;;;------------------------------------------------ 
-
-
 
 
 
@@ -201,7 +211,8 @@ the hashtable in TREE with the key in NAME."
   ;; NOTE2: Leave this last line as "name" so
   ;;        that the name argument is what is
   ;;        returned by this function.
-  ;;name)
+  name
+  )
 
 
 
@@ -209,14 +220,45 @@ the hashtable in TREE with the key in NAME."
 (DEFUN ancestorsb (name tree)
   "A helper function for the ANCESTORS function. 
 Returns a list of names (strings or symbols) of all the ancestors of NAME in TREE. 
-Does not remove any duplicated names! Does not sort names! Does not check if NAME 
-exists as a person in the TREE!"
+Does not remove any duplicated names! Does not sort names!"
   (LET* ((p (lookup-person name tree))
          (parent1 (person-parent1 p))
-         (parent2 (person-parent2 p)))
-    ;;body of function goes here.
-    ))
+         (parent2 (person-parent2 p))
+         ancestorslist (LIST))
 
+    ;; SKELETON CODE!
+
+    (IF parent1
+      ()
+      )
+
+    (IF parent1
+      ()
+      )
+
+    ancestorslist
+    )
+  )
+
+
+;;This function needs to be defined by your team.
+(DEFUN descendantsb (name tree)
+  "A helper function for the DESCENDANTS function. 
+Returns a list of names (strings or symbols) of all the descendants of NAME in TREE. 
+Does not remove any duplicated names! Does not sort names!"
+  (LET* ((p (lookup-person name tree))
+         (children (person-children p))
+         descendantslist (LIST))
+  
+    ;; SKELETON CODE!
+
+    (IF children
+      ()
+      )
+
+    descendantslist
+    )
+  )
 
 
 ;;NOTE: This function needs to be defined by team
@@ -240,19 +282,28 @@ exists as a person in the TREE!"
 ;;NOTE: This function needs to be defined by team
 (DEFUN handle-X (linelist tree)
   "LINELIST is a LIST of strings. TREE is a hash-table."
-  (LET ()
-    ;;body of function goes here
-
-    ))
+  (CASE (nth 1 linelist)
+    ("child" ())
+    ("sibling" ())
+    ("ancestor" ())
+    ("cousin" ())
+    ("unrelated" ())
+    )
 
 
 ;;NOTE: This function needs to be defined by team
 (DEFUN handle-W (linelist tree)
   "LINELIST is a LIST of strings. TREE is a hash-table."
-  (LET ()
-    ;;body of function goes here
+  (CASE (nth 0 linelist)
+    ("child" ())
+    ("sibling" ())
+    ("ancestor" ())
+    ("cousin" ())
+    ("unrelated" ())
+    )
 
-    ))
+
+
 
 ;;;------------------------------------------------
 ;;; TEAM SHOULD PUT ALL NEW HELPER FUNCTION
