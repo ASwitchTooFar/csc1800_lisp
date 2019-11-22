@@ -194,30 +194,26 @@ the hashtable in TREE with the key in NAME."
   ;;        Hint: a "setf" expression.
   (SETF (GETHASH name tree) struct)
 
-  ;; Add the person to the parents' child lists, assuming the parents exist.
-  (IF (person-parent1 (GETHASH name tree))
-    (SETF
-      (person-children (GETHASH (person-parent1 (GETHASH name tree)) tree))
-      (NCONC (person-children (GETHASH (person-parent1 (GETHASH name tree)) tree)) (LIST name)))
-  )
-  (IF (person-parent2 (GETHASH name tree))
-    (SETF
-      (person-children (GETHASH (person-parent2 (GETHASH name tree)) tree))
-      (NCONC (person-children (GETHASH (person-parent2 (GETHASH name tree)) tree)) (LIST name)))
-  )
+  (LET* ((p (lookup-person name tree)))
 
-  ;; NOTE2: Leave this last line as "name" so
-  ;;        that the name argument is what is
-  ;;        returned by this function.
+    (IF (person-parent1 p)
+      (SETF (person-children (lookup-person (person-parent1 p) tree))
+        (APPEND (person-children (lookup-person (person-parent1 p) tree)) (LIST name)))
+      )
+    (IF (person-parent2 p)
+      (SETF (person-children (lookup-person (person-parent2 p) tree))
+        (APPEND (person-children (lookup-person (person-parent2 p) tree)) (LIST name)))
+      )
+    )
+
   name
   )
-
 
 
 (DEFUN printlist (personlist)
   "A helper function for printing out lists. Removes duplicates and sorts before
 printing."
-  (FORMAT T "~%~{~a~%~}" (SORT (REMOVE-DUPLICATES personlist) #'string-lessp))
+  (FORMAT T "~{~a~%~}" (SORT (REMOVE-DUPLICATES personlist) #'string-lessp))
   )
 
 
@@ -232,18 +228,18 @@ Does not implicitly remove any duplicated names! Does not sort names!"
          (parent2 (person-parent2 p)))
 
     (IF parent1
-      (IF (not (MEMBER parent1 ancestorlist))
+      (IF (not (MEMBER parent1 ancestorlist :test #'equal))
         (PROGN
-          (SETF ancestorlist (NCONC ancestorlist (LIST parent1)))
+          (SETF ancestorlist (APPEND ancestorlist (LIST parent1)))
           (ancestorsb parent1 tree)
           )
         )
       )
 
     (IF parent2
-      (IF (not (MEMBER parent2 ancestorlist))
+      (IF (not (MEMBER parent2 ancestorlist :test #'equal))
         (PROGN
-          (SETF ancestorlist (NCONC ancestorlist (LIST parent2)))
+          (SETF ancestorlist (APPEND ancestorlist (LIST parent2)))
           (ancestorsb parent2 tree)
           )
         )
@@ -254,25 +250,30 @@ Does not implicitly remove any duplicated names! Does not sort names!"
   )
 
 
+
+(DEFUN children (name tree)
+  "Returns a list of the children of NAME in TREE."
+  (LET* ((p (lookup-person name tree)))
+    (person-children p)
+    )
+  )
+
+
 ;;This function needs to be defined by your team.
 (DEFUN descendantsb (name tree)
   "A helper function for the DESCENDANTS function.
 Returns a list of names (strings or symbols) of all the descendants of NAME in TREE.
 Does not implicitly remove any duplicated names! Does not sort names!"
-  (LET* ((p (lookup-person name tree))
-         (children (person-children p)))
-
-    (LOOP for child in children doing
-      (IF (not (MEMBER child descendantlist))
-        (PROGN
-          (SETF descendantlist (NCONC descendantlist (LIST child)))
-          (descendantsb child tree)
-          )
+  (LOOP for child in (children name tree) doing
+    (IF (not (MEMBER child descendantlist :test #'equal))
+      (PROGN
+        (SETF descendantlist (APPEND descendantlist (LIST child)))
+        (descendantsb child tree)
         )
       )
-
-    descendantlist
     )
+
+  descendantlist
   )
 
 
@@ -280,27 +281,23 @@ Does not implicitly remove any duplicated names! Does not sort names!"
   "Returns a list of names (strings or symbols) of all the siblings of NAME in TREE.
 Does dynamic type checking to see whether all the arguments are of the correct types."
   (WHEN (NOT (OR (SYMBOLP name) (STRINGP name)))
-    (ERROR "DESCENDANTS called with NAME (~A) that is not a SYMBOL or STRING." name))
+    (ERROR "SIBLINGS called with NAME (~A) that is not a SYMBOL or STRING." name))
   (WHEN (NOT (HASH-TABLE-P tree))
-    (ERROR "DESCENDANTS called with TREE (~A) that is not a HASH-TABLE." tree))
-  (WHEN (person-exists name tree)
+    (ERROR "SIBLINGS called with TREE (~A) that is not a HASH-TABLE." tree))
+  (WHEN (person-exists name tree)    
     (LET* ((p (lookup-person name tree))
-           (parent1 (person-parent1 p))
-           (parent2 (person-parent2 p))
-           (siblings (LIST)))
+           (siblinglist (LIST)))
 
-      (IF parent1
-        (SETF siblings (person-children parent1))
+      (IF (person-parent1 p)
+        (SETF siblinglist (APPEND siblinglist (children (person-parent1 p) tree)))
         )
-      (IF parent2
-        (SETF siblings (NCONC siblings (person-children parent2)))
+      (IF (person-parent2 p)
+        (SETF siblinglist (APPEND siblinglist (children (person-parent2 p) tree)))
         )
 
-      (IF siblings
-        (SETF siblings (REMOVE name siblings))
-        )
+      (REMOVE name siblinglist :test #'equal)
 
-      siblings
+      siblinglist
       )
     )
   )
@@ -309,7 +306,7 @@ Does dynamic type checking to see whether all the arguments are of the correct t
 (DEFUN allpeople (tree)
   "Returns a list of all people in the tree."
   (LET* ((people (LIST)))
-    (maphash #'(lambda (k v) (SETF people (NCONC people (LIST k))) tree))
+    (maphash #'(lambda (k v) (SETF people (APPEND people (LIST k)))) tree)
 
     people
     )
@@ -329,10 +326,8 @@ Does dynamic type checking to see whether all the arguments are of the correct t
            (local_unrelated (allpeople tree)))
 
       (LOOP for ancestor in local_ancestors doing
-        (SETF local_related (NCONC local_related (descendants ancestor tree)))
+        (SETF local_related (APPEND local_related (descendants ancestor tree)))
         )
-
-      (SETF local_related (REMOVE-DUPLICATES local_related))
 
       (LOOP for relative in local_related doing
         (SETF local_unrelated (REMOVE relative local_unrelated))
@@ -340,6 +335,22 @@ Does dynamic type checking to see whether all the arguments are of the correct t
 
       local_unrelated
       )
+    )
+  )
+
+
+(DEFUN cousins (degree name tree)
+  "Returns a list of names (strings or symbols) of all the cousins of NAME of the
+specified degree in TREE. Does dynamic type checking to see whether all the arguments
+are of the correct types."
+  (WHEN (NOT (OR (SYMBOLP name) (STRINGP name)))
+    (ERROR "COUSINS called with NAME (~A) that is not a SYMBOL or STRING." name))
+  (WHEN (NOT (HASH-TABLE-P tree))
+    (ERROR "COUSINS called with TREE (~A) that is not a HASH-TABLE." tree))
+  (WHEN (person-exists name tree)
+
+    ;; CODE TO FIND COUSINS!!
+    
     )
   )
 
@@ -365,14 +376,56 @@ Does dynamic type checking to see whether all the arguments are of the correct t
 ;;NOTE: This function needs to be defined by team
 (DEFUN handle-X (linelist tree)
   "LINELIST is a LIST of strings. TREE is a hash-table."
-  (FORMAT T "X ~{~a ~}" linelist)
+  (FORMAT T "X ~{~a ~}~%" linelist)
 
-  (COND
-    ((STRING= (nth 1 linelist) "child") ())
-    ((STRING= (nth 1 linelist) "sibling") ())
-    ((STRING= (nth 1 linelist) "ancestor") ())
-    ((STRING= (nth 1 linelist) "cousin") (#| TBD |#))
-    ((STRING= (nth 1 linelist) "unrelated") ())
+  (IF (STRING= (nth 1 linelist) "child")
+    (IF (person-exists (nth 2 linelist) tree)
+      (IF (MEMBER (nth 0 linelist) (children (nth 2 linelist) tree) :test #'equal)
+        (FORMAT T "Yes~%")
+        (FORMAT T "No~%")
+        )
+      (FORMAT T "~a does not exist in the family tree.~%" (nth 2 linelist))
+      )
+    )
+
+  (IF (STRING= (nth 1 linelist) "sibling")
+    (IF (person-exists (nth 2 linelist) tree)
+      (IF (MEMBER (nth 0 linelist) (siblings (nth 2 linelist) tree) :test #'equal)
+        (FORMAT T "Yes~%")
+        (FORMAT T "No~%")
+        )
+      (FORMAT T "~a does not exist in the family tree.~%" (nth 2 linelist))
+      )
+    )
+
+  (IF (STRING= (nth 1 linelist) "ancestor")
+    (IF (person-exists (nth 2 linelist) tree)
+      (IF (MEMBER (nth 0 linelist) (ancestors (nth 2 linelist) tree) :test #'equal)
+        (FORMAT T "Yes~%")
+        (FORMAT T "No~%")
+        )
+      (FORMAT T "~a does not exist in the family tree.~%" (nth 2 linelist))
+      )
+    )
+
+  (IF (STRING= (nth 1 linelist) "cousin")
+    (IF (person-exists (nth 3 linelist) tree)
+      (IF (MEMBER (nth 0 linelist) (cousins (nth 2 linelist) (nth 3 linelist) tree) :test #'equal)
+        (FORMAT T "Yes~%")
+        (FORMAT T "No~%")
+        )
+      (FORMAT T "~a does not exist in the family tree.~%" (nth 2 linelist))
+      )
+    )
+
+  (IF (STRING= (nth 1 linelist) "unrelated")
+    (IF (person-exists (nth 2 linelist) tree)
+      (IF (MEMBER (nth 0 linelist) (unrelated (nth 2 linelist) tree) :test #'equal)
+        (FORMAT T "Yes~%")
+        (FORMAT T "No~%")
+        )
+      (FORMAT T "~a does not exist in the family tree.~%" (nth 2 linelist))
+      )
     )
 
   (TERPRI)
@@ -382,14 +435,41 @@ Does dynamic type checking to see whether all the arguments are of the correct t
 ;;NOTE: This function needs to be defined by team
 (DEFUN handle-W (linelist tree)
   "LINELIST is a LIST of strings. TREE is a hash-table."
-  (FORMAT T "W ~{~a ~}" linelist)
+  (FORMAT T "W ~{~a ~}~%" linelist)
 
-  (COND
-    ((STRING= (nth 0 linelist) "child") (printlist (person-children (lookup-person (nth 1 linelist) tree))))
-    ((STRING= (nth 0 linelist) "sibling") (printlist (siblings (nth 1 linelist) tree)))
-    ((STRING= (nth 0 linelist) "ancestor") (printlist (ancestors (nth 1 linelist) tree)))
-    ((STRING= (nth 0 linelist) "cousin") (#| TBD |#))
-    ((STRING= (nth 0 linelist) "unrelated") (printlist (unrelated (nth 1 linelist) tree)))
+  (IF (STRING= (nth 0 linelist) "child")
+    (IF (person-exists (nth 1 linelist) tree)
+      (printlist (children (nth 1 linelist) tree))
+      (FORMAT T "~a does not exist in the family tree.~%" (nth 1 linelist))
+      )
+    )
+
+  (IF (STRING= (nth 0 linelist) "sibling")
+    (IF (person-exists (nth 1 linelist) tree)
+      (printlist (siblings (nth 1 linelist) tree))
+      (FORMAT T "~a does not exist in the family tree.~%" (nth 1 linelist))
+      )
+    )
+
+  (IF (STRING= (nth 0 linelist) "ancestor")
+    (IF (person-exists (nth 1 linelist) tree)
+      (printlist (ancestors (nth 1 linelist) tree))
+      (FORMAT T "~a does not exist in the family tree.~%" (nth 1 linelist))
+      )
+    )
+
+  (IF (STRING= (nth 0 linelist) "cousin")
+    (IF (person-exists (nth 2 linelist) tree)
+      (printlist (cousins (nth 1 linelist) (nth 2 linelist) tree))
+      (FORMAT T "~a does not exist in the family tree.~%" (nth 2 linelist))
+      )
+    )
+
+  (IF (STRING= (nth 0 linelist) "unrelated")
+    (IF (person-exists (nth 1 linelist) tree)
+      (printlist (unrelated (nth 1 linelist) tree))
+      (FORMAT T "~a does not exist in the family tree.~%" (nth 1 linelist))
+      )
     )
 
   (TERPRI)
@@ -445,12 +525,19 @@ each line from the file opened in STREAM."
     (handle-E '("Karen" "Bill" "Alex") tree)
 
     (handle-W '("child" "Fred") tree)
-    ;;(handle-W '("sibling" "Karen") tree)
+    (handle-W '("sibling" "Karen") tree)
     (handle-W '("ancestor" "Alex") tree)
-    ;;(handle-W '("unrelated" "Fred") tree)
-    ;; if "add-person" is defined correctly and "ancestorsb" is defined correctly,
-    ;; this last call should make test-tree return a list containing the following
-    ;; in some arbitrary order when you call test-tree in the Listener:
-    ;;   ("Karen" "Bill" "Fred" "Mary" "Zebulon" "Zenobia")
+    (handle-W '("unrelated" "Fred") tree)
+    (handle-W '("sibling" "Arthur") tree) ;;Intentional nonexistant person.
+
+    (handle-X '("Fred" "child" "Zenobia") tree)
+    (handle-X '("Mary" "child" "Zenobia") tree)
+    (handle-X '("Karen" "sibling" "Benjamin") tree)
+    (handle-X '("Alex" "sibling" "Benjamin") tree)
+    (handle-X '("Brenda" "ancestor" "Fred") tree)
+    (handle-X '("Zebulon" "ancestor" "Brenda") tree)
+    (handle-X '("Karen" "unrelated" "Mary") tree)
+    (handle-X '("Bill" "unrelated" "Mary") tree)
+    (handle-X '("Mary" "unrelated" "Arthur") tree) ;;Intentional nonexistant person.
     )
   )
