@@ -295,7 +295,7 @@ Does dynamic type checking to see whether all the arguments are of the correct t
         (SETF siblinglist (APPEND siblinglist (children (person-parent2 p) tree)))
         )
 
-      (REMOVE name siblinglist :test #'equal)
+      (SETF siblinglist (REMOVE name siblinglist :test #'equal))
 
       siblinglist
       )
@@ -314,12 +314,12 @@ Does dynamic type checking to see whether all the arguments are of the correct t
 
 
 (DEFUN unrelated (name tree)
-  "Returns a list of names (strings or symbols) of all the siblings of NAME in TREE.
+  "Returns a list of names (strings or symbols) of all the people unrelated to NAME in TREE.
 Does dynamic type checking to see whether all the arguments are of the correct types."
   (WHEN (NOT (OR (SYMBOLP name) (STRINGP name)))
-    (ERROR "DESCENDANTS called with NAME (~A) that is not a SYMBOL or STRING." name))
+    (ERROR "UNRELATED called with NAME (~A) that is not a SYMBOL or STRING." name))
   (WHEN (NOT (HASH-TABLE-P tree))
-    (ERROR "DESCENDANTS called with TREE (~A) that is not a HASH-TABLE." tree))
+    (ERROR "UNRELATED called with TREE (~A) that is not a HASH-TABLE." tree))
   (WHEN (person-exists name tree)
     (LET* ((local_ancestors (ancestors name tree))
            (local_related (ancestors name tree))
@@ -329,10 +329,16 @@ Does dynamic type checking to see whether all the arguments are of the correct t
         (SETF local_related (APPEND local_related (descendants ancestor tree)))
         )
 
+      (SETF local_related (REMOVE-DUPLICATES local_related))
+
+      (FORMAT T "All: ~a~%" local_unrelated)
+      (FORMAT T "Related: ~a~%" local_related)
+
       (LOOP for relative in local_related doing
         (SETF local_unrelated (REMOVE relative local_unrelated))
         )
 
+      (FORMAT T "Unrelated [to ~a]: ~a~%" name local_unrelated)
       local_unrelated
       )
     )
@@ -494,11 +500,20 @@ each line from the file opened in STREAM."
   (LET ((tree (MAKE-HASH-TABLE :size 1000 :test #'equal))
         (line-items (SPLIT-SEQUENCE " " (READ-LINE stream nil "") :test #'equal)))
   (LOOP
-    (CASE (FIRST line-items)
-      ("E" (handle-E (REST line-items) tree))
-      ("W" (handle-W (REST line-items) tree))
-      ("X" (handle-X (REST line-items) tree))
-      (t (RETURN nil))) ; end of file reached
+    (COND
+      ((STRING= (nth 0 line-items) "E")
+        (handle-E (REST line-items) tree)
+        )
+      ((STRING= (nth 0 line-items) "W")
+        (handle-W (REST line-items) tree)
+        )
+      ((STRING= (nth 0 line-items) "X")
+        (handle-X (REST line-items) tree)
+        )
+      (t
+        (RETURN nil) ; end of file reached
+        )
+      )
     (SETF line-items (SPLIT-SEQUENCE " " (READ-LINE stream nil "") :test #'equal)))
   )
 )
