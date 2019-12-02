@@ -213,7 +213,7 @@ the hashtable in TREE with the key in NAME."
 (DEFUN printlist (personlist)
   "A helper function for printing out lists. Removes duplicates and sorts before
 printing."
-  (FORMAT T "~{~a~%~}" (SORT (REMOVE-DUPLICATES personlist) #'string-lessp))
+  (FORMAT T "~{~a~%~}" (SORT (REMOVE-DUPLICATES personlist :test #'equal) #'string-lessp))
   )
 
 
@@ -329,16 +329,12 @@ Does dynamic type checking to see whether all the arguments are of the correct t
         (SETF local_related (APPEND local_related (descendants ancestor tree)))
         )
 
-      (SETF local_related (REMOVE-DUPLICATES local_related))
-
-      (FORMAT T "All: ~a~%" local_unrelated)
-      (FORMAT T "Related: ~a~%" local_related)
+      (SETF local_related (REMOVE-DUPLICATES local_related :test #'equal))
 
       (LOOP for relative in local_related doing
-        (SETF local_unrelated (REMOVE relative local_unrelated))
+        (SETF local_unrelated (REMOVE relative local_unrelated :test #'equal))
         )
 
-      (FORMAT T "Unrelated [to ~a]: ~a~%" name local_unrelated)
       local_unrelated
       )
     )
