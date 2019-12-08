@@ -276,7 +276,6 @@ Does not implicitly remove any duplicated names! Does not sort names!"
   descendantlist
   )
 
-
 (DEFUN siblings (name tree)
   "Returns a list of names (strings or symbols) of all the siblings of NAME in TREE.
 Does dynamic type checking to see whether all the arguments are of the correct types."
@@ -340,21 +339,73 @@ Does dynamic type checking to see whether all the arguments are of the correct t
     )
   )
 
+(DEFSTRUCT generation
+  (name nil)
+  (generation 0))
 
+(DEFUN addancestor (name struct ancestorTree)
+  (SETF (GETHASH name ancestorTree) struct))
+
+(DEFUN ancweight (ancestorTree p gen tree)
+  (COND ((and (person-exists p tree)
+            (person-parent 1 (lookup-person p tree)))
+       (addancestor (person-parent1 (lookup-person p tree))
+                     (make-generation :name (person-parent1 (lookup-person p tree))
+                                      :generation (+ gen 1))
+                     ancestorTree)
+       (addancestor (person-parent2 (lookup-person p tree))
+                    (make-generation :name (person-parent2 (lookup-person p tree))
+                                     :generation (+ gen 1))
+                    ancestorTree)
+       (ancweight ancestorTree (person-parent1 (lookup-person p tree)) (+ gen 1) tree)
+       (ancweight ancestorTree (person-parent2 (lookup-person p tree)) (+ gen 1) tree)
+       ancestorTree))
+)
+
+(DEFUN minof (a)
+  (apply 'min a)
+)
+
+(DEFUN arecousins (name1 name2 degree tree)
+  (COND ((or (string= name1 name2)
+             (or (member name1 (ancestorsb name2 tree) :test #'equal)
+                 (member name2 (ancestorsb name1 tree) :test #'equal)
+             (not (person-exists name1 tree))
+             (not (person-exists name2 tree))
+             (not (person-parent1 (lookup-person name1 tree)))
+             (not (person-parent1 (lookup-person name2 tree))))
+         nil)
+         (t
+          (LET* ((ancestors1 (MAKE-HASH-TABLE :size 1000 :test #'equal))
+                 (ancestors2 (MAKE-HASH-TABLE :size 1000 :test #'equal))
+                 (weight1 (ancweight ancestors1 name1 0 tree))
+                 (weight2 (ancweight ancestors2 name2 0 tree))
+                 (mingen nil)
+                 (list1 nil)
+                 (list2 nil))
+            (maphash #'(lambda (k v) (SETF list1 (append list1 (list k)))) weight1)
+            (maphash #'(lambda (k v) (SETF list1 (append list2 (list k)))) weight2)
+            (LOOP for person in list doing 
+                  (SETF mingen
+                        (append mingen
+                                (list (min (ancgen (lookup-person person weight1))
+                                           (ancgen (lookup-person person weight2)))))))
+            (and (> (list-length mingen) 0)
+                 (= (- (minof mingen) 1) (parse-integer degree)))))))
+)
+
+   
 (DEFUN cousins (degree name tree)
   "Returns a list of names (strings or symbols) of all the cousins of NAME of the
 specified degree in TREE. Does dynamic type checking to see whether all the arguments
 are of the correct types."
-  (WHEN (NOT (OR (SYMBOLP name) (STRINGP name)))
-    (ERROR "COUSINS called with NAME (~A) that is not a SYMBOL or STRING." name))
-  (WHEN (NOT (HASH-TABLE-P tree))
-    (ERROR "COUSINS called with TREE (~A) that is not a HASH-TABLE." tree))
-  (WHEN (person-exists name tree)
-
-    ;; CODE TO FIND COUSINS!!
-    
-    )
-  )
+  (SETF cousins nil)
+  (SETF people (allPeople tree))
+  (LOOP for person in people doing 
+        (IF (arecousins name person degree tree)
+            (SETF cousins (append cousins (list person)))))
+  cousins
+)
 
 
 ;;NOTE: This function needs to be defined by team
@@ -538,7 +589,7 @@ each line from the file opened in STREAM."
     (handle-W '("child" "Fred") tree)
     (handle-W '("sibling" "Karen") tree)
     (handle-W '("ancestor" "Alex") tree)
-    (handle-W '("unrelated" "Fred") tree)
+    (handle-W '("cousin" "Fred") tree)
     (handle-W '("sibling" "Arthur") tree) ;;Intentional nonexistant person.
 
     (handle-X '("Fred" "child" "Zenobia") tree)
@@ -552,3 +603,4 @@ each line from the file opened in STREAM."
     (handle-X '("Mary" "unrelated" "Arthur") tree) ;;Intentional nonexistant person.
     )
   )
+
